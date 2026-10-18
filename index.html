@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Veresiye Defteri">
+  <title>Sanayi Veresiye Defteri</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen pb-20">
+
+  <!-- Üst Bar -->
+  <header class="bg-slate-900 text-white p-4 sticky top-0 z-10 shadow-md flex justify-between items-center">
+    <div>
+      <h1 class="text-lg font-bold">🔧 Veresiye Defteri</h1>
+      <p class="text-xs text-slate-400">Sanayi Hesap Takip Sistemi</p>
+    </div>
+    <button onclick="openBackupModal()" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg font-medium">
+      💾 Yedekle
+    </button>
+  </header>
+
+  <!-- ANA EKRAN (Müşteri Listesi) -->
+  <main id="mainView" class="p-4 max-w-md mx-auto">
+    <!-- Toplam Alacak Kartı -->
+    <div class="bg-gradient-to-r from-blue-700 to-indigo-800 text-white rounded-2xl p-5 shadow-lg mb-4">
+      <p class="text-xs uppercase tracking-wider opacity-80">Toplam Dükkan Alacağı</p>
+      <h2 id="totalReceivable" class="text-3xl font-extrabold mt-1">0 ₺</h2>
+      <div class="flex justify-between items-center mt-3 pt-3 border-t border-white/20 text-xs">
+        <span id="customerCount">Kayıtlı Müşteri: 0</span>
+        <span>Güncel Bakiye</span>
+      </div>
+    </div>
+
+    <!-- Arama ve Yeni Müşteri -->
+    <div class="flex gap-2 mb-4">
+      <input type="text" id="searchInput" oninput="renderCustomers()" placeholder="İsim veya Plaka ara (Örn: 45 ABC)..." 
+        class="w-full p-3 rounded-xl border border-slate-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 text-sm">
+      <button onclick="openCustomerModal()" class="bg-blue-600 text-white px-4 rounded-xl font-bold shadow hover:bg-blue-700 shrink-0 text-sm">
+        + Müşteri
+      </button>
+    </div>
+
+    <!-- Müşteri Listesi -->
+    <div id="customerList" class="space-y-3"></div>
+  </main>
+
+  <!-- MÜŞTERİ DETAY EKRANI -->
+  <section id="detailView" class="p-4 max-w-md mx-auto hidden">
+    <button onclick="closeDetailView()" class="mb-3 text-sm font-semibold text-blue-600 flex items-center gap-1">
+      ← Listeye Dön
+    </button>
+
+    <div class="bg-white rounded-2xl p-4 shadow mb-4 border border-slate-200">
+      <div class="flex justify-between items-start">
+        <div>
+          <h2 id="detName" class="text-xl font-bold text-slate-900"></h2>
+          <span id="detPlate" class="inline-block bg-amber-100 text-amber-900 border border-amber-300 font-mono text-xs px-2 py-0.5 rounded mt-1 font-bold"></span>
+          <p id="detPhone" class="text-xs text-slate-500 mt-1"></p>
+        </div>
+        <div class="text-right">
+          <p class="text-xs text-slate-400">Kalan Borç</p>
+          <p id="detBalance" class="text-2xl font-extrabold text-red-600">0 ₺</p>
+        </div>
+      </div>
+
+      <!-- Aksiyon Butonları -->
+      <div class="grid grid-cols-2 gap-2 mt-4">
+        <button onclick="openTxModal('debt')" class="bg-red-600 text-white py-2.5 rounded-xl font-bold text-sm shadow">
+          + Borç / İşlem Ekle
+        </button>
+        <button onclick="openTxModal('payment')" class="bg-emerald-600 text-white py-2.5 rounded-xl font-bold text-sm shadow">
+          - Ödeme Al (Tahsilat)
+        </button>
+      </div>
+
+      <div class="flex gap-2 mt-2">
+        <button onclick="sendWhatsApp()" class="flex-1 bg-green-500 text-white py-2 rounded-xl font-semibold text-xs shadow flex justify-center items-center gap-1">
+          💬 WhatsApp Özeti Gönder
+        </button>
+        <button onclick="deleteCurrentCustomer()" class="bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-semibold">
+          🗑️ Sil
+        </button>
+      </div>
+    </div>
+
+    <h3 class="font-bold text-sm text-slate-600 mb-2">İşlem Geçmişi</h3>
+    <div id="txList" class="space-y-2"></div>
+  </section>
+
+  <!-- YENİ MÜŞTERİ MODAL -->
+  <div id="customerModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl">
+      <h3 class="font-bold text-lg mb-3">Yeni Müşteri Kaydı</h3>
+      <input id="custName" type="text" placeholder="Ad Soyad / Lakap (Zorunlu)" class="w-full p-3 border rounded-xl mb-2 text-sm">
+      <input id="custPlate" type="text" placeholder="Araç Plakası / Model (Örn: 45 TT 123 - Doblo)" class="w-full p-3 border rounded-xl mb-2 text-sm uppercase">
+      <input id="custPhone" type="tel" placeholder="Telefon (Örn: 05xxxxxxxxx)" class="w-full p-3 border rounded-xl mb-4 text-sm">
+      <div class="flex justify-end gap-2">
+        <button onclick="closeCustomerModal()" class="px-4 py-2 rounded-xl bg-slate-200 text-sm font-semibold">İptal</button>
+        <button onclick="saveCustomer()" class="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- İŞLEM (BORÇ / ÖDEME) MODAL -->
+  <div id="txModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl">
+      <h3 id="txModalTitle" class="font-bold text-lg mb-3">İşlem Ekle</h3>
+      <input id="txAmount" type="number" inputmode="decimal" placeholder="Tutar (₺)" class="w-full p-3 border rounded-xl mb-2 text-lg font-bold">
+      <input id="txDesc" type="text" placeholder="Açıklama (Örn: Baskı balata değişimi + işçilik)" class="w-full p-3 border rounded-xl mb-4 text-sm">
+      <div class="flex justify-end gap-2">
+        <button onclick="closeTxModal()" class="px-4 py-2 rounded-xl bg-slate-200 text-sm font-semibold">İptal</button>
+        <button onclick="saveTransaction()" class="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold">Onayla</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- YEDEKLEME MODAL -->
+  <div id="backupModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl">
+      <h3 class="font-bold text-lg mb-2">Veri Yedekleme</h3>
+      <p class="text-xs text-slate-500 mb-4">Kayıtları telefonunuza dosya olarak indirebilir veya daha önce indirdiğiniz yedeği geri yükleyebilirsiniz.</p>
+      <button onclick="exportData()" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold text-sm mb-3">
+        📥 Yedeği Telefona İndir
+      </button>
+      <label class="block w-full bg-slate-100 border border-slate-300 text-center py-2.5 rounded-xl font-semibold text-sm cursor-pointer mb-4">
+        📤 Yedek Dosyası Yükle
+        <input type="file" accept=".json" onchange="importData(event)" class="hidden">
+      </label>
+      <button onclick="closeBackupModal()" class="w-full py-2 rounded-xl bg-slate-200 text-sm font-semibold">Kapat</button>
+    </div>
+  </div>
+
+  <script>
+    let db = JSON.parse(localStorage.getItem('sanayiVeresiyeDB')) || [];
+    let activeCustomerId = null;
+    let activeTxType = 'debt';
+
+    function saveDB() {
+      localStorage.setItem('sanayiVeresiyeDB', JSON.stringify(db));
+      renderCustomers();
+    }
+
+    function getBalance(customer) {
+      return customer.transactions.reduce((acc, tx) => tx.type === 'debt' ? acc + tx.amount : acc - tx.amount, 0);
+    }
+
+    function formatCurrency(val) {
+      return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(val);
+    }
+
+    function renderCustomers() {
+      const list = document.getElementById('customerList');
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      list.innerHTML = '';
+
+      let totalAll = 0;
+      db.forEach(c => totalAll += Math.max(0, getBalance(c)));
+      document.getElementById('totalReceivable').innerText = formatCurrency(totalAll);
+      document.getElementById('customerCount').innerText = `Kayıtlı Müşteri: ${db.length}`;
+
+      const filtered = db.filter(c => 
+        c.name.toLowerCase().includes(query) || 
+        (c.plate && c.plate.toLowerCase().includes(query))
+      );
+
+      if (filtered.length === 0) {
+        list.innerHTML = `<div class="text-center text-slate-400 py-8 text-sm">Müşteri bulunamadı. "+ Müşteri" butonundan ilk kaydı açabilirsin.</div>`;
+        return;
+      }
+
+      filtered.forEach(c => {
+        const bal = getBalance(c);
+        const card = document.createElement('div');
+        card.className = "bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex justify-between items-center cursor-pointer active:scale-[0.99] transition";
+        card.onclick = () => openDetailView(c.id);
+        card.innerHTML = `
+          <div>
+            <h4 class="font-bold text-slate-900">${c.name}</h4>
+            ${c.plate ? `<span class="inline-block bg-amber-100 text-amber-900 border border-amber-300 font-mono text-[11px] px-1.5 py-0.5 rounded mt-0.5 font-bold">\${c.plate}</span>` : ''}
+          </div>
+          <div class="text-right">
+            <span class="text-lg font-extrabold ${bal > 0 ? 'text-red-600' : 'text-emerald-600'}">${formatCurrency(bal)}</span>
+            <p class="text-[11px] text-slate-400">Detay →</p>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    function openCustomerModal() {
+      document.getElementById('custName').value = '';
+      document.getElementById('custPlate').value = '';
+      document.getElementById('custPhone').value = '';
+      document.getElementById('customerModal').classList.replace('hidden', 'flex');
+    }
+    function closeCustomerModal() {
+      document.getElementById('customerModal').classList.replace('flex', 'hidden');
+    }
+    function saveCustomer() {
+      const name = document.getElementById('custName').value.trim();
+      const plate = document.getElementById('custPlate').value.trim().toUpperCase();
+      const phone = document.getElementById('custPhone').value.trim();
+      if (!name) return alert('Lütfen müşteri adını girin.');
+      db.unshift({ id: Date.now().toString(), name, plate, phone, transactions: [] });
+      saveDB();
+      closeCustomerModal();
+    }
+
+    function openDetailView(id) {
+      activeCustomerId = id;
+      const c = db.find(x => x.id === id);
+      if (!c) return;
+      document.getElementById('mainView').classList.add('hidden');
+      document.getElementById('detailView').classList.remove('hidden');
+      
+      document.getElementById('detName').innerText = c.name;
+      const plateEl = document.getElementById('detPlate');
+      if (c.plate) { plateEl.innerText = c.plate; plateEl.classList.remove('hidden'); }
+      else { plateEl.classList.add('hidden'); }
+      document.getElementById('detPhone').innerText = c.phone || 'Telefon kayıtlı değil';
+      
+      const bal = getBalance(c);
+      const balEl = document.getElementById('detBalance');
+      balEl.innerText = formatCurrency(bal);
+      balEl.className = `text-2xl font-extrabold ${bal > 0 ? 'text-red-600' : 'text-emerald-600'}`;
+
+      const txList = document.getElementById('txList');
+      txList.innerHTML = '';
+      if (c.transactions.length === 0) {
+        txList.innerHTML = `<div class="text-center text-slate-400 py-6 text-xs">Henüz işlem eklenmemiş.</div>`;
+        return;
+      }
+
+      c.transactions.forEach(tx => {
+        const item = document.createElement('div');
+        item.className = "bg-white p-3 rounded-xl border border-slate-200 flex justify-between items-center text-sm";
+        item.innerHTML = `
+          <div>
+            <p class="font-semibold text-slate-800">${tx.desc || (tx.type === 'debt' ? 'Borç Eklendi' : 'Ödeme Alındı')}</p>
+            <p class="text-[11px] text-slate-400">${tx.date}</p>
+          </div>
+          <span class="font-bold ${tx.type === 'debt' ? 'text-red-600' : 'text-emerald-600'}">
+            ${tx.type === 'debt' ? '+' : '-'}${formatCurrency(tx.amount)}
+          </span>
+        `;
+        txList.appendChild(item);
+      });
+    }
+
+    function closeDetailView() {
+      activeCustomerId = null;
+      document.getElementById('detailView').classList.add('hidden');
+      document.getElementById('mainView').classList.remove('hidden');
+      renderCustomers();
+    }
+
+    function openTxModal(type) {
+      activeTxType = type;
+      document.getElementById('txModalTitle').innerText = type === 'debt' ? '🔴 Borç / İşlem Ekle' : '🟢 Ödeme Al (Tahsilat)';
+      document.getElementById('txAmount').value = '';
+      document.getElementById('txDesc').value = '';
+      document.getElementById('txModal').classList.replace('hidden', 'flex');
+    }
+    function closeTxModal() {
+      document.getElementById('txModal').classList.replace('flex', 'hidden');
+    }
+    function saveTransaction() {
+      const amount = parseFloat(document.getElementById('txAmount').value);
+      const desc = document.getElementById('txDesc').value.trim();
+      if (!amount || amount <= 0) return alert('Geçerli bir tutar girin.');
+      const c = db.find(x => x.id === activeCustomerId);
+      const now = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      c.transactions.unshift({ id: Date.now().toString(), type: activeTxType, amount, desc, date: now });
+      saveDB();
+      closeTxModal();
+      openDetailView(activeCustomerId);
+    }
+
+    function sendWhatsApp() {
+      const c = db.find(x => x.id === activeCustomerId);
+      const bal = getBalance(c);
+      let text = `Selamlar *${c.name}*,\n`;
+      if (c.plate) text += `*${c.plate}* plakalı aracınız için güncel hesap özetiniz:\n\n`;
+      text += `*Güncel Kalan Bakiye: ${formatCurrency(bal)}*\n\nSon İşlemler:\n`;
+      c.transactions.slice(0, 5).forEach(tx => {
+        text += `• ${tx.date.split(' ')[0]}: ${tx.desc || (tx.type === 'debt' ? 'İşlem' : 'Ödeme')} (${tx.type === 'debt' ? '+' : '-'}${formatCurrency(tx.amount)})\n`;
+      });
+      text += `\nİyi günler dileriz.`;
+      
+      let phone = (c.phone || '').replace(/\D/g, '');
+      if (phone.startsWith('0')) phone = '90' + phone.substring(1);
+      else if (phone.length === 10) phone = '90' + phone;
+
+      const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+      window.open(url, '_blank');
+    }
+
+    function deleteCurrentCustomer() {
+      if (!confirm('Bu müşteriyi ve tüm kayıtlarını silmek istediğinize emin misiniz?')) return;
+      db = db.filter(x => x.id !== activeCustomerId);
+      saveDB();
+      closeDetailView();
+    }
+
+    function openBackupModal() { document.getElementById('backupModal').classList.replace('hidden', 'flex'); }
+    function closeBackupModal() { document.getElementById('backupModal').classList.replace('flex', 'hidden'); }
+
+    function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
+      const dlAnchor = document.createElement('a');
+      dlAnchor.setAttribute("href", dataStr);
+      dlAnchor.setAttribute("download", `veresiye_yedek_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(dlAnchor);
+      dlAnchor.click();
+      dlAnchor.remove();
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (Array.isArray(imported)) {
+            db = imported;
+            saveDB();
+            closeBackupModal();
+            alert('Yedek başarıyla yüklendi!');
+          }
+        } catch (err) { alert('Hatalı yedek dosyası!'); }
+      };
+      reader.readAsText(file);
+    }
+
+    renderCustomers();
+  </script>
+</body>
+</html>
